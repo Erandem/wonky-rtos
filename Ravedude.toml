@@ -1,0 +1,5 @@
+[general]
+board = "nano-new"
+open-console = true
+serial-baudrate = 230400
+port = "COM3"
