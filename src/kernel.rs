@@ -1,4 +1,4 @@
-use crate::task::Task;
+use crate::{stack_task, task::Task};
 
 use core::cell::UnsafeCell;
 
@@ -6,7 +6,6 @@ use heapless::Vec;
 use once_cell::sync::OnceCell;
 
 pub static KERNEL: OnceCell<Kernel> = OnceCell::new();
-static mut SCHEDULER_TASK: [u8; 64] = [0; 64];
 
 pub struct Kernel {
     ks: UnsafeCell<KernelState>,
@@ -17,8 +16,7 @@ impl Kernel {
         let ks = KernelState {
             current_task: 0,
             tasks: Vec::new(),
-            #[allow(static_mut_refs)]
-            scheduler_task: Task::new(unsafe { &mut SCHEDULER_TASK }, scheduler_task)
+            scheduler_task: unsafe { stack_task!(scheduler_task) },
         };
 
         Kernel { ks: UnsafeCell::new(ks) }
@@ -34,8 +32,7 @@ impl Kernel {
 
         ks.tasks[ks.current_task].set_stack_pointer(stack_pointer as usize);
 
-        #[allow(static_mut_refs)]
-        unsafe { Task::new(&mut SCHEDULER_TASK, scheduler_task).exec() };
+        unsafe { stack_task!(scheduler_task).exec() }
     }
 
     pub unsafe fn add_task(&self, task: Task) {

@@ -8,7 +8,7 @@ macro_rules! stack_task {
     };
 
     ($func:ident, stack_size: $stack_size:expr) => {
-        stack_task!($func, stack_size: $stack_size, stack_guard: STACK_GUARD)
+        stack_task!($func, stack_size: $stack_size, stack_guard: $crate::task::STACK_GUARD)
     };
 
     ($func:ident, stack_size: $stack_size:expr, stack_guard: $stack_guard:expr) => {
@@ -16,7 +16,7 @@ macro_rules! stack_task {
             static mut TASK_STACK: [u8; $stack_size] = [$stack_guard; $stack_size];
 
             #[allow(static_mut_refs)]
-            unsafe { Task::new(&mut TASK_STACK, $func) }
+            Task::new(&mut TASK_STACK, $func)
         }
     };
 }

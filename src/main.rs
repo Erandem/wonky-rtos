@@ -8,14 +8,9 @@ pub mod millis;
 pub mod utils;
 pub mod kernel;
 
-use avr_device::asm::nop;
-
 use crate::kernel::get_kernel;
 use crate::task::{Task, exec_context, save_context};
 use crate::millis::millis;
-
-static STACK_SIZE: usize = 128;
-static STACK_GUARD: u8 = 0xE1;
 
 #[unsafe(no_mangle)]
 pub static mut ASM_LOG_LOC: [u8; 8] = [0; 8];
@@ -86,9 +81,9 @@ fn kyield() {
 }
 
 fn main() {
-    let t1 = stack_task!(entry_task1);
-    let t2 = stack_task!(entry_task2);
-    let t3 = stack_task!(entry_task3);
+    let t1 = unsafe { stack_task!(entry_task1) };
+    let t2 = unsafe { stack_task!(entry_task2) };
+    let t3 = unsafe { stack_task!(entry_task3) };
 
     println!("t.sp   : 0x{:04x}", t1.stack_pointer());
     println!("t.sb   : 0x{:04x}", t1.stack_bottom() as u16);
