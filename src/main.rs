@@ -54,6 +54,23 @@ fn entry_task2() -> ! {
     }
 }
 
+fn entry_task3() -> ! {
+    println!("Task 3 started!");
+
+    let mut last = millis();
+
+    loop {
+        let now = millis();
+
+        if now - last >= 750 {
+            last = now;
+            println!("T3: {}", now);
+        }
+
+        kyield();
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn ksched(stack_pointer: u16) -> ! {
     println!("ksched called: 0x{:04x}", stack_pointer);
@@ -69,17 +86,9 @@ fn kyield() {
 }
 
 fn main() {
-    static mut TASK1_STACK: [u8; 128] = [STACK_GUARD; STACK_SIZE];
-    static mut TASK2_STACK: [u8; 128] = [STACK_GUARD; STACK_SIZE];
-
-    println!("sp     : 0x{:04x}", utils::get_stack_pointer());
-    println!("heap   : 0x{:04x}", utils::get_heap_pointer());
-    println!("est ram: {}/{}", utils::estimate_used_ram(), utils::TOTAL_RAM);
-
-    #[allow(static_mut_refs)]
-    let t1 = Task::new(unsafe { &mut TASK1_STACK }, entry_task1);
-    #[allow(static_mut_refs)]
-    let t2 = Task::new(unsafe { &mut TASK2_STACK }, entry_task2);
+    let t1 = stack_task!(entry_task1);
+    let t2 = stack_task!(entry_task2);
+    let t3 = stack_task!(entry_task3);
 
     println!("t.sp   : 0x{:04x}", t1.stack_pointer());
     println!("t.sb   : 0x{:04x}", t1.stack_bottom() as u16);
@@ -89,8 +98,9 @@ fn main() {
 
     let kernel = get_kernel();
 
-    unsafe { kernel.add_task(t1) };
-    unsafe { kernel.add_task(t2) };
+    unsafe { 
+        kernel.add_tasks([t1, t2, t3]);
+    }
 
     unsafe { kernel.start() }
 }

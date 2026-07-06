@@ -1,4 +1,4 @@
-use crate::{println, task::Task};
+use crate::task::Task;
 
 use core::cell::UnsafeCell;
 
@@ -35,13 +35,21 @@ impl Kernel {
         ks.tasks[ks.current_task].set_stack_pointer(stack_pointer as usize);
 
         #[allow(static_mut_refs)]
-        unsafe { Task::new(unsafe { &mut SCHEDULER_TASK }, scheduler_task).exec() };
+        unsafe { Task::new(&mut SCHEDULER_TASK, scheduler_task).exec() };
     }
 
     pub unsafe fn add_task(&self, task: Task) {
         let ks = unsafe { self.get_ks() };
 
         ks.tasks.push(task).unwrap();
+    }
+
+    pub unsafe fn add_tasks(&self, tasks: impl IntoIterator<Item = Task>) {
+        let ks = unsafe { self.get_ks() };
+
+        for task in tasks {
+            ks.tasks.push(task).unwrap();
+        }
     }
 
     pub unsafe fn start(&self) -> ! {
