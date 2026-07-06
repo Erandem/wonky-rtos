@@ -1,4 +1,4 @@
-#![feature(abi_avr_interrupt)]
+#![feature(abi_avr_interrupt, never_type)]
 #![no_std]
 #![no_main]
 
@@ -66,6 +66,26 @@ fn entry_task3() -> ! {
     }
 }
 
+fn closure_wait_task(task_num: u8, wait_time: u32) -> impl FnOnce() -> ! + 'static {
+    move || {
+        println!("Task {} started!", task_num);
+
+        let mut last = millis();
+
+        loop {
+            let now = millis();
+
+            if now - last >= wait_time {
+                last = now;
+                println!("T{}: {}", task_num, now);
+            }
+
+            kyield();
+        }
+    }
+
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn ksched(stack_pointer: u16) -> ! {
     println!("ksched called: 0x{:04x}", stack_pointer);
@@ -84,17 +104,22 @@ fn main() {
     let t1 = unsafe { stack_task!(entry_task1) };
     let t2 = unsafe { stack_task!(entry_task2) };
     let t3 = unsafe { stack_task!(entry_task3) };
+    let t4 =  { 
+        static mut S: [u8; 128] = [0; 128];
+        #[allow(static_mut_refs)]
+        unsafe { Task::new_closure( &mut S, closure_wait_task(4, 50))}
+    };
 
-    println!("t.sp   : 0x{:04x}", t1.stack_pointer());
-    println!("t.sb   : 0x{:04x}", t1.stack_bottom() as u16);
-    println!("t.ssz  : {}", t1.stack_size());
-    println!("sp-sb  : {}", t1.stack_bottom() as usize - t1.stack_pointer());
-    println!("t.fn   : 0x{:04x}", entry_task1 as *const () as usize);
+    let t5 =  { 
+        static mut S: [u8; 128] = [0; 128];
+        #[allow(static_mut_refs)]
+        unsafe { Task::new_closure( &mut S, closure_wait_task(5, 100))}
+    };
 
     let kernel = get_kernel();
 
     unsafe { 
-        kernel.add_tasks([t1, t2, t3]);
+        kernel.add_tasks([t5, t4]);
     }
 
     unsafe { kernel.start() }

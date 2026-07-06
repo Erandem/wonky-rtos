@@ -24,3 +24,8 @@ pub fn estimate_used_ram() -> u16 {
 
     TOTAL_RAM as u16 - (stack_ptr - heap_ptr)
 }
+
+/// Splits the u16 into a (lo, hi) tuple
+pub const fn split_u16(value: u16) -> (u8, u8) {
+    ((value & 0xFF) as u8, ((value >> 8) & 0xFF) as u8)
+}

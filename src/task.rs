@@ -1,3 +1,5 @@
+use crate::utils::split_u16;
+
 pub const DEFAULT_STACK_SIZE: usize = 128;
 pub const STACK_GUARD: u8 = 0xE1;
 
@@ -59,13 +61,56 @@ impl Task {
         }
  
         // Push empty registers to the stack
-        for _ in 0..32 {
-            unsafe { task.push(0) };
-        }
+        unsafe { task.push_registers(Registers::new()) }
 
         // Push SREG
         unsafe { task.push(0x80) } // SREG with I-bit set
 
+        task
+    }
+
+    pub unsafe fn new_closure<F>(stack: &'static mut [u8], closure: F) -> Task
+    where
+        F: FnOnce() -> ! + 'static,
+    {
+        let closure_size = core::mem::size_of::<F>();
+        let closure_align = core::mem::align_of::<F>();
+
+        let stack_start = stack.as_mut_ptr() as usize;
+        let closure_addr = (stack_start + closure_align - 1) & !(closure_align - 1);
+        let (closure_addr_lo, closure_addr_hi) = split_u16(closure_addr as u16);
+
+        let stack_bottom = unsafe { stack.as_mut_ptr().add(stack.len() - 1) };
+
+        assert!(
+            closure_addr + closure_size <= stack_bottom as usize,
+            "stack too small to hold closure!",
+        );
+
+        // Write closure address for trampoline
+        unsafe { core::ptr::write(closure_addr as *mut F, closure) };
+
+        let stack_pointer = stack_bottom as usize;
+        let mut task = Task {
+            stack_pointer,
+            stack_bottom,
+            stack_size: stack.len(),
+        };
+
+        // Push entry function address to the end of the stack
+        unsafe { task.push_addr(trampoline::<F> as *const () as usize) }
+
+        // Then push the registers
+        unsafe {
+            task.push_registers(
+                Registers::new()
+                    .set_reg(24, closure_addr_lo)
+                    .set_reg(25, closure_addr_hi),
+            )
+        };
+
+        // Then push SREG with I-bit set
+        unsafe { task.push(0x80) }; // SREG with I-bit set
         task
     }
 
@@ -81,13 +126,36 @@ impl Task {
         self.stack_pointer -= 1;
     }
 
-    pub fn set_stack_pointer(&mut self, stack_pointer: usize) { self.stack_pointer = stack_pointer }
+    unsafe fn push_addr(&mut self, addr: usize) {
+        let (addr_lo, addr_high) = split_u16(addr as u16);
 
-    pub fn stack_pointer(&self) -> usize { self.stack_pointer }
+        unsafe {
+            self.push(addr_lo);
+            self.push(addr_high);
+        }
+    }
 
-    pub fn stack_bottom(&self) -> *mut u8 { self.stack_bottom }
+    unsafe fn push_registers(&mut self, registers: Registers) {
+        for &reg in registers.get() {
+            unsafe { self.push(reg) };
+        }
+    }
 
-    pub fn stack_size(&self) -> usize { self.stack_size }
+    pub fn set_stack_pointer(&mut self, stack_pointer: usize) {
+        self.stack_pointer = stack_pointer
+    }
+
+    pub fn stack_pointer(&self) -> usize {
+        self.stack_pointer
+    }
+
+    pub fn stack_bottom(&self) -> *mut u8 {
+        self.stack_bottom
+    }
+
+    pub fn stack_size(&self) -> usize {
+        self.stack_size
+    }
 }
 
 #[cfg(target_arch = "avr")]
@@ -95,3 +163,31 @@ unsafe impl Send for Task {}
 
 #[cfg(target_arch = "avr")]
 unsafe impl Sync for Task {}
+
+pub struct Registers {
+    regs: [u8; 32],
+}
+
+impl Registers {
+    pub const fn new() -> Registers {
+        Registers { regs: [0; 32] }
+    }
+
+    pub const fn set_reg(mut self, reg: usize, value: u8) -> Self {
+        self.regs[reg] = value;
+
+        self
+    }
+
+    pub const fn get(&self) -> &[u8; 32] {
+        &self.regs
+    }
+}
+
+unsafe extern "C" fn trampoline<F>(closure_ptr: *mut F) -> !
+where
+    F: FnOnce() -> ! + 'static,
+{
+    let closure = unsafe { core::ptr::read(closure_ptr) };
+    closure()
+}
