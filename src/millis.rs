@@ -1,7 +1,7 @@
 use arduino_hal::pac::TC0;
 
-const PRESCALER: u32 = 1024;
-const TIMER_COUNTS: u32 = 125;
+const PRESCALER: u32 = 64;
+const TIMER_COUNTS: u32 = 250;
 
 static mut MILLIS_COUNTER_VOLATILE: u64 = 0;
 
