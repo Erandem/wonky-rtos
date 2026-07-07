@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 ufmt = "0.2"
 heapless = "0.9"
-portable-atomic = "1.13.1"
 once_cell = { version = "1.21", default-features = false, features = ["critical-section"] }
 
 avr-device = "0.8"
