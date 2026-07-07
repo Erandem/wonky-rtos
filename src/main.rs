@@ -2,71 +2,20 @@
 #![no_std]
 #![no_main]
 
+pub mod kernel;
+pub mod millis;
 pub mod print;
 pub mod task;
-pub mod millis;
 pub mod utils;
-pub mod kernel;
 
 use crate::kernel::get_kernel;
-use crate::task::{Task, exec_context, save_context};
 use crate::millis::millis;
+use crate::task::{Task, exec_context, save_context};
 
 #[unsafe(no_mangle)]
 pub static mut ASM_LOG_LOC: [u8; 8] = [0; 8];
 
-fn entry_task1() -> ! {
-    println!("Task 1 started!");
-
-    let mut last = millis();
-
-    loop { 
-        let now = millis();
-
-        if now - last >= 100 {
-            last = now;
-            println!("T1: {}", now);
-        }
-
-        kyield();
-    }
-}
-
-fn entry_task2() -> ! {
-    println!("Task 2 started!");
-
-    let mut last = millis();
-
-    loop {
-        let now = millis();
-
-        if now - last >= 500 {
-            last = now;
-            println!("T2: {}", now);
-        }
-
-        kyield();
-    }
-}
-
-fn entry_task3() -> ! {
-    println!("Task 3 started!");
-
-    let mut last = millis();
-
-    loop {
-        let now = millis();
-
-        if now - last >= 750 {
-            last = now;
-            println!("T3: {}", now);
-        }
-
-        kyield();
-    }
-}
-
-fn closure_wait_task(task_num: u8, wait_time: u32) -> impl FnOnce() -> ! + 'static {
+fn closure_wait_task(task_num: u8, wait_time: u64) -> impl FnOnce() -> ! + 'static {
     move || {
         println!("Task {} started!", task_num);
 
@@ -83,7 +32,6 @@ fn closure_wait_task(task_num: u8, wait_time: u32) -> impl FnOnce() -> ! + 'stat
             kyield();
         }
     }
-
 }
 
 #[unsafe(no_mangle)]
@@ -91,7 +39,7 @@ pub extern "C" fn ksched(stack_pointer: u16) -> ! {
     println!("ksched called: 0x{:04x}", stack_pointer);
 
     unsafe { exec_context(stack_pointer) };
-    loop { }
+    loop {}
 }
 
 #[inline(never)]
@@ -101,25 +49,14 @@ fn kyield() {
 }
 
 fn main() {
-    let t1 = unsafe { stack_task!(entry_task1) };
-    let t2 = unsafe { stack_task!(entry_task2) };
-    let t3 = unsafe { stack_task!(entry_task3) };
-    let t4 =  { 
-        static mut S: [u8; 128] = [0; 128];
-        #[allow(static_mut_refs)]
-        unsafe { Task::new_closure( &mut S, closure_wait_task(4, 50))}
-    };
-
-    let t5 =  { 
-        static mut S: [u8; 128] = [0; 128];
-        #[allow(static_mut_refs)]
-        unsafe { Task::new_closure( &mut S, closure_wait_task(5, 100))}
-    };
-
     let kernel = get_kernel();
 
-    unsafe { 
-        kernel.add_tasks([t5, t4]);
+    unsafe {
+        kernel.add_tasks([
+            stack_task!(closure_wait_task(1, 11)),
+            stack_task!(closure_wait_task(2, 12)),
+            stack_task!(closure_wait_task(3, 13)),
+        ]);
     }
 
     unsafe { kernel.start() }

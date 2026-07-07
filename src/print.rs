@@ -4,6 +4,16 @@ type Console = arduino_hal::hal::usart::Usart0<arduino_hal::DefaultClock>;
 pub static CONSOLE: SharedConsole = SharedConsole::new();
 
 #[macro_export]
+macro_rules! assert {
+    ($cond:expr $(,)?) => {
+        if !$cond {
+            crate::println!("assertion failed: {}", stringify!($cond));
+            panic!();
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! print {
     ($($t:tt)*) => {
         avr_device::interrupt::free(|_| {

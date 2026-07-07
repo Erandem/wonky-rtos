@@ -1,24 +1,24 @@
 use crate::utils::split_u16;
 
-pub const DEFAULT_STACK_SIZE: usize = 128;
+pub const DEFAULT_STACK_SIZE: usize = 256;
 pub const STACK_GUARD: u8 = 0xE1;
 
 #[macro_export]
 macro_rules! stack_task {
-    ($func:ident) => {
+    ($func:expr) => {
         stack_task!($func, stack_size: $crate::task::DEFAULT_STACK_SIZE)
     };
 
-    ($func:ident, stack_size: $stack_size:expr) => {
+    ($func:expr, stack_size: $stack_size:expr) => {
         stack_task!($func, stack_size: $stack_size, stack_guard: $crate::task::STACK_GUARD)
     };
 
-    ($func:ident, stack_size: $stack_size:expr, stack_guard: $stack_guard:expr) => {
+    ($func:expr, stack_size: $stack_size:expr, stack_guard: $stack_guard:expr) => {
         {
             static mut TASK_STACK: [u8; $stack_size] = [$stack_guard; $stack_size];
 
             #[allow(static_mut_refs)]
-            Task::new(&mut TASK_STACK, $func)
+            Task::new_closure(&mut TASK_STACK, $func)
         }
     };
 }

@@ -1,10 +1,9 @@
 use arduino_hal::pac::TC0;
-use portable_atomic::{AtomicU32, Ordering};
 
 const PRESCALER: u32 = 1024;
 const TIMER_COUNTS: u32 = 125;
 
-static MILLIS_COUNTER: AtomicU32 = AtomicU32::new(0);
+static mut MILLIS_COUNTER_VOLATILE: u64 = 0;
 
 pub unsafe fn init(tc0: TC0) {
     tc0.tccr0a().write(|w| w.wgm0().ctc());
@@ -23,9 +22,12 @@ pub unsafe fn init(tc0: TC0) {
 
 #[avr_device::interrupt(atmega328p)]
 fn TIMER0_COMPA() {
-    MILLIS_COUNTER.add(1, Ordering::Relaxed);
+    unsafe { MILLIS_COUNTER_VOLATILE = MILLIS_COUNTER_VOLATILE.unchecked_add(1) };
 }
 
-pub fn millis() -> u32 {
-    MILLIS_COUNTER.load(Ordering::Relaxed)
+#[inline(never)]
+pub fn millis() -> u64 {
+    avr_device::interrupt::free(|_| {
+        unsafe { MILLIS_COUNTER_VOLATILE }
+    })
 }

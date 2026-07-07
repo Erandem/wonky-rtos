@@ -2,6 +2,7 @@
 target = "avr-none"
 rustflags = [
     "-C", "target-cpu=atmega328p",
+    "-C", "llvm-args=--stack-size-section"
 ]
 
 [target.'cfg(target_arch = "avr")']

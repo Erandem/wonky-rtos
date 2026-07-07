@@ -1,4 +1,4 @@
-use crate::{stack_task, task::Task};
+use crate::{kyield, stack_task, task::Task};
 
 use core::cell::UnsafeCell;
 
@@ -15,8 +15,16 @@ impl Kernel {
     unsafe fn new() -> Kernel {
         let ks = KernelState {
             current_task: 0,
-            tasks: Vec::new(),
-            scheduler_task: unsafe { stack_task!(scheduler_task) },
+            tasks: {
+                let mut tasks = Vec::new();
+
+                let _ = tasks.push(unsafe {
+                    stack_task!(scheduler_task, stack_size: 128)
+                });
+
+                tasks
+            },
+            task_order: Vec::new(),
         };
 
         Kernel { ks: UnsafeCell::new(ks) }
@@ -30,9 +38,13 @@ impl Kernel {
     pub unsafe fn scheduler_tick(&self, stack_pointer: u16) -> ! {
         let ks = unsafe { self.get_ks() };
 
-        ks.tasks[ks.current_task].set_stack_pointer(stack_pointer as usize);
+        // Set the current task's stack pointer to the value passed in from the assembly code
+        unsafe { ks.tasks.get_unchecked_mut(ks.current_task).set_stack_pointer(stack_pointer as usize) };
 
-        unsafe { stack_task!(scheduler_task).exec() }
+        // Update current task and then call it
+        ks.current_task = unsafe { ks.task_order.pop_unchecked() };
+
+        unsafe { ks.tasks.get_unchecked(ks.current_task).exec() };
     }
 
     pub unsafe fn add_task(&self, task: Task) {
@@ -52,7 +64,7 @@ impl Kernel {
     pub unsafe fn start(&self) -> ! {
         let ks = unsafe { self.get_ks() };
 
-        unsafe { ks.scheduler_task.exec() };
+        unsafe { ks.tasks[0].exec() };
     }
 
     unsafe fn get_ks(&self) -> &mut KernelState {
@@ -67,12 +79,10 @@ unsafe impl Sync for Kernel {}
 struct KernelState {
     current_task: usize,
     tasks: Vec<Task, 4>,
-    scheduler_task: Task,
+    task_order: Vec<usize, 4>,
 }
 
-impl KernelState {
-
-}
+impl KernelState {}
 
 unsafe impl Send for KernelState {}
 
@@ -84,9 +94,14 @@ pub unsafe fn init() {
     });
 }
 
-/// Returns a reference to the Kernel or panics.
+/// Returns a reference to the Kernel
+/// 
+/// # Safety
+/// While this function is not marked as unsafe, it is only safe to call this function after
+/// the kernel has been initialized.
+#[inline(never)]
 pub fn get_kernel() -> &'static Kernel {
-    KERNEL.get().unwrap()
+    unsafe { KERNEL.get_unchecked() }
 }
 
 fn scheduler_task() -> ! {
@@ -99,12 +114,16 @@ fn scheduler_task() -> ! {
     loop {
         avr_device::interrupt::disable();
 
-        //println!("Scheduler Task Running!");
+        //crate::println!("Scheduler Task Running!");
 
         let ks = unsafe { kernel.get_ks() };
-        ks.current_task = ks.current_task.wrapping_add(1) % ks.tasks.len();
+        crate::assert!(ks.task_order.is_empty());
 
-        unsafe { ks.tasks[ks.current_task].exec() };
+        for (task_id, _task) in ks.tasks.iter().enumerate() {
+            ks.task_order.push(task_id).unwrap();
+        }
+
+        kyield();
     }
 }
 

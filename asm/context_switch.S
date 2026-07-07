@@ -55,10 +55,6 @@ save_context:
 
     ; We can't return here - we've mangled the return address, which is at the
     ; beginning of the stack. We need to change this to an interrupt handler.
-    ;ldi r30, lo8(ksched)
-    ;ldi r31, hi8(ksched)
-    ;ldi r30, lo8(kernel_scheduler_tick)
-    ;ldi r31, hi8(kernel_scheduler_tick)
     jmp kernel_scheduler_tick
 
 exec_context:
