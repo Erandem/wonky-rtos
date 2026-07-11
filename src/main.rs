@@ -34,18 +34,21 @@ fn closure_wait_task(task_num: u8, wait_time: u64) -> impl FnOnce() -> ! + 'stat
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn ksched(stack_pointer: u16) -> ! {
-    println!("ksched called: 0x{:04x}", stack_pointer);
-
-    unsafe { exec_context(stack_pointer) };
-    loop {}
+#[inline(always)]
+fn kyield() {
+    kyield_fast();
 }
 
 #[inline(never)]
-fn kyield() {
+fn kyield_fast() {
     // save_context() jumps to the scheduler after running
-    unsafe { save_context() };
+    unsafe { save_context_fast() };
+}
+
+#[inline(never)]
+fn kyield_full() {
+    // save_context() jumps to the scheduler after running
+    unsafe { save_context_full() };
 }
 
 fn main() {

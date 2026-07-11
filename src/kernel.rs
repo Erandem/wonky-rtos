@@ -35,11 +35,13 @@ impl Kernel {
     /// This function assumes that
     /// 1. Interrupts are disabled
     /// 2. It is the only interface into the kernel
-    pub unsafe fn scheduler_tick(&self, stack_pointer: u16) -> ! {
+    pub unsafe fn scheduler_tick(&self, stack_pointer: u16, frame_type: FrameType) -> ! {
         let ks = unsafe { self.get_ks() };
 
         // Set the current task's stack pointer to the value passed in from the assembly code
-        unsafe { ks.tasks.get_unchecked_mut(ks.current_task).set_stack_pointer(stack_pointer as usize) };
+        let cur = unsafe { ks.tasks.get_unchecked_mut(ks.current_task) }; 
+        cur.set_stack_pointer(stack_pointer as usize);
+        cur.set_frame_type(frame_type);
 
         // Update current task and then call it
         ks.current_task = unsafe { ks.task_order.pop_unchecked() };
@@ -75,6 +77,12 @@ impl Kernel {
 unsafe impl Send for Kernel {}
 
 unsafe impl Sync for Kernel {}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum FrameType {
+    Full,
+    Fast,
+}
 
 struct KernelState {
     current_task: usize,
@@ -128,10 +136,15 @@ fn scheduler_task() -> ! {
 }
 
 mod abi {
-    use super::get_kernel;
+    use super::{FrameType, get_kernel};
 
-    #[unsafe(export_name = "kernel_scheduler_tick")]
-    pub unsafe extern "C" fn scheduler_tick(stack_pointer: u16) -> ! {
-        unsafe { get_kernel().scheduler_tick(stack_pointer) }
+    #[unsafe(export_name = "kernel_scheduler_tick_full")]
+    pub unsafe extern "C" fn scheduler_tick_full(stack_pointer: u16) -> ! {
+        unsafe { get_kernel().scheduler_tick(stack_pointer, FrameType::Full) }
+    }
+
+    #[unsafe(export_name = "kernel_scheduler_tick_fast")]
+    pub unsafe extern "C" fn scheduler_tick_fast(stack_pointer: u16) -> ! {
+        unsafe { get_kernel().scheduler_tick(stack_pointer, FrameType::Fast) }
     }
 }

@@ -6,13 +6,17 @@
 .extern panic_asm
 .extern ASM_LOG_LOC
 
-.extern kernel_scheduler_tick
+.extern kernel_scheduler_tick_full
+.extern kernel_scheduler_tick_fast
 
-.global save_context
-.global exec_context
+.global save_context_fast
+.global save_context_full
+
+.global exec_context_fast
+.global exec_context_full
 
 ; Saves the registers and returns the stack pointer as u16
-save_context:
+save_context_full:
     ; Push remaining registers
     push r0
     push r1
@@ -55,9 +59,9 @@ save_context:
 
     ; We can't return here - we've mangled the return address, which is at the
     ; beginning of the stack. We need to change this to an interrupt handler.
-    jmp kernel_scheduler_tick
+    jmp kernel_scheduler_tick_full
 
-exec_context:
+exec_context_full:
     ; r24 - low byte of stack pointer
     ; r25 - high byte of stack pointer
 
@@ -102,6 +106,73 @@ exec_context:
     pop r2
     pop r1
     pop r0
+
+    ; return to the passed stack frame
+    ret
+
+save_context_fast:
+    ; Push callee-saved registers
+    push r2
+    push r3
+    push r4
+    push r5
+    push r6
+    push r7
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    push r16
+    push r17
+
+    push r28
+    push r29
+
+    ; Also save SREG
+    in r0, __SREG__
+    push r0
+
+    in r24, __SP_L__
+    in r25, __SP_H__
+
+    jmp kernel_scheduler_tick_fast
+
+exec_context_fast:
+    ; r24 - low byte of stack pointer
+    ; r25 - high byte of stack pointer
+
+    ; load the passed stack pointer
+    out __SP_L__, r24
+    out __SP_H__, r25
+
+    ; restore SREG
+    pop r0
+    out __SREG__, r0
+
+    ; restore registers in descending order
+    pop r29
+    pop r28
+
+    pop r17
+    pop r16
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
 
     ; return to the passed stack frame
     ret

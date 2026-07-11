@@ -25,8 +25,12 @@ macro_rules! stack_task {
 
 unsafe extern "C" {
     /// Saves registers and SREG, and returns the stack pointer
-    pub fn save_context() -> u16;
-    pub fn exec_context(stack_pointer: u16);
+    pub fn save_context_full() -> u16;
+    pub fn exec_context_full(stack_pointer: u16);
+
+    // Like the `full` functions, but only saves callee registers
+    pub fn save_context_fast() -> u16;
+    pub fn exec_context_fast(stack_pointer: u16);
 }
 
 // Need repr(C) so we can guarantee the memory layout for saving and storing the stack pointer
@@ -48,6 +52,7 @@ impl Task {
             stack_pointer,
             stack_bottom,
             stack_size: stack.len(),
+            frame_type: FrameType::Full,
         };
 
         // Push entry function address to the end of the stack
@@ -95,6 +100,7 @@ impl Task {
             stack_pointer,
             stack_bottom,
             stack_size: stack.len(),
+            frame_type: FrameType::Full,
         };
 
         // Push entry function address to the end of the stack
@@ -115,7 +121,10 @@ impl Task {
     }
 
     pub unsafe fn exec(&self) -> ! {
-        unsafe { exec_context(self.stack_pointer as u16) }
+        match self.frame_type {
+            FrameType::Full => unsafe { exec_context_full(self.stack_pointer as u16) },
+            FrameType::Fast => unsafe { exec_context_fast(self.stack_pointer as u16) },
+        }
 
         panic!("exec_context returned");
     }
@@ -155,6 +164,14 @@ impl Task {
 
     pub fn stack_size(&self) -> usize {
         self.stack_size
+    }
+
+    pub fn set_frame_type(&mut self, frame_type: FrameType) {
+        self.frame_type = frame_type
+    }
+
+    pub fn frame_type(&self) -> FrameType {
+        self.frame_type
     }
 }
 
