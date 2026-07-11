@@ -22,7 +22,7 @@ fn closure_wait_task(task_num: u8, wait_time: u64) -> impl FnOnce() -> ! + 'stat
         let mut last = millis();
 
         loop {
-            let now = millis();
+            let now = micros();
 
             if now - last >= wait_time {
                 last = now;
@@ -53,9 +53,9 @@ fn main() {
 
     unsafe {
         kernel.add_tasks([
-            stack_task!(closure_wait_task(1, 11)),
-            stack_task!(closure_wait_task(2, 12)),
-            stack_task!(closure_wait_task(3, 13)),
+            stack_task!(closure_wait_task(1, 1000 * 1000)),
+            stack_task!(closure_wait_task(2, 2000 * 1000)),
+            stack_task!(closure_wait_task(3, 3000 * 1000)),
         ]);
     }
 
@@ -70,7 +70,7 @@ fn entry() -> ! {
     let serial = arduino_hal::default_serial!(periphs, pins, 230400);
 
     unsafe { crate::print::init(serial) };
-    unsafe { crate::millis::init(periphs.TC0) };
+    unsafe { crate::millis::init_tc1(periphs.TC1) };
     unsafe { crate::kernel::init() };
 
     main();
